@@ -1,0 +1,232 @@
+---
+title: "Matrix Efficiencies in R"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Introduction
+Indicative report comparing R matrix efficiencies efficiencies. The initial investigation is on R native solutions including techniques and support libraries for efficiencies. Elementwise function change to 2 dimiensional matrix of 1000 x 1000 matrix with:
+
+
+* stardard looping through matrix
+* sapply
+* parrallel (n clusters)
+
+
+*To measure perfomance proc.time function was applied to determines how much real and CPU time (in seconds) the currently running R process has already taken.
+The user time is the CPU time charged for the execution of user instructions of the calling process. The system time is the CPU time charged for execution by the system on behalf of the calling process.* [1](https://stat.ethz.ch/R-manual/R-devel/library/base/html/proc.time.html)
+
+\vspace{5pt}
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+matris1=matrix(rnorm(10),1000,1000)
+# loop through each value and add 10:
+#with for loop
+mat = matris1
+ptm <- proc.time()
+# Create the loop with r and c to iterate over the matrix
+for (r in 1:nrow(mat))   
+  for (c in 1:ncol(mat))  
+    mat[r,c] = mat[r,c] * 10
+R_matrix_for = proc.time() - ptm
+# sapply Multiply all values by 10:
+#with sapply
+ptm <- proc.time()
+sapply_matrix = sapply(matris1,function(x) 10 * x)
+R_matrix_sapply = proc.time() - ptm
+#-----------------------------------
+# parallelize computations using a cluster.
+# equivalet with parrellel sapply, Multiply all values by 10:
+library("parallel")
+#------------2cores-----------------------
+cl = makeCluster(2) #set number of cluster objects
+ptm <- proc.time()
+parSapply_parrallel_matrix = parSapply(cl,matris1,function(x) 10 * x)
+stopCluster(cl) #always stop cluter, avoid memory leak
+parSapply2_parrallel_matrix_time = proc.time() - ptm
+#------------4cores-----------------------
+cl = makeCluster(4) #set number of cluster objects
+ptm <- proc.time()
+parSapply_parrallel_matrix = parSapply(cl,matris1,function(x) 10 * x)
+stopCluster(cl) #always stop cluter, avoid memory leak
+parSapply3_parrallel_matrix_time = proc.time() - ptm
+#------------6cores-----------------------
+cl = makeCluster(4) #set number of cluster objects
+ptm <- proc.time()
+parSapply_parrallel_matrix = parSapply(cl,matris1,function(x) 10 * x)
+stopCluster(cl) #always stop cluter, avoid memory leak
+parSapply4_parrallel_matrix_time = proc.time() - ptm
+results_survey <- data.frame("for_loop" = c(R_matrix_for),
+                             "sapply" = c(R_matrix_sapply),
+                             "parallel_2" = c(parSapply2_parrallel_matrix_time),
+                             "parallel_4" = c(parSapply3_parrallel_matrix_time),
+                             "parallel_6" = c(parSapply4_parrallel_matrix_time)
+)
+results_survey<- head(results_survey,-2)#remove user.child and sys.child recored
+#three decimal places
+is.num <- sapply(results_survey, is.numeric)
+results_survey[is.num] <- lapply(results_survey[is.num], round, 3)
+
+library(gridExtra)
+library(grid)
+g <- tableGrob(results_survey)
+find_cell <- function(table, row, col, name="core-fg"){
+  l <- table$layout
+  which(l$t==row & l$l==col & l$name==name)
+}
+
+ind <- find_cell(g, 4, 3, "core-bg")
+g$grobs[ind][[1]][["gp"]] <- gpar(fill="darkolivegreen1", col = "darkolivegreen4", lwd=5)
+grid.draw(g)
+```
+
+## Results
+sapply performce show the lowest elapse time on a 1000 x 1000  matrix, this is likely due to the overhead of running jobs in parallel.
+If the jobs you fire at the worker nodes take a significant amount of time then it is likely parallelization will improve overall performance. If individual jobs take only milliseconds, the overhead of constantly firing off jobs will deteriorate overall performance. Further optimising is possible by dividing the work over the nodes in such a way that the jobs are sufficiently long, say at least a few second. Parrallelisation advantages are shown when runing models simultaneously that individual will run for hours.
+
+
+Computational and memory plots of 2d matrix with varying size:
+
+```{r echo=FALSE, fig.height=4.5, fig.width=7, message=FALSE, warning=FALSE, paged.print=FALSE}
+
+rmatrix_tests <- function(n_matrix = c(1,10,100) ,print_out=TRUE) {
+  #Summary: testing parrellel and sapply function 
+  #parameter: n_matrix is a list of number of column and rows in 2d matrix. i.e 100 is 100x100 matrix
+    
+  #loop through matrix
+  library("parallel")
+  library("pryr")
+  
+  #initialise
+  i=0
+  x <- n_matrix
+  
+  #runtime matrix
+  runtime_results=matrix(0,length(x),4)
+  colnames(runtime_results) <- c("Sapply (secs)","parrellel2 (secs)", "parrellel4 (secs)", "parrellel6 (secs)") #,"SystemTime","UserTime","Memory")
+  rownames(runtime_results) <- x
+  
+  #memory consumed in matrix
+  memory_results=matrix(0,length(x),4)
+  colnames(memory_results) <- c("Sapply (MB)","parrellel2 (MB)", "parrellel4 (MB)", "parrellel6 (MB)") #,"SystemTime","UserTime","Memory")
+  rownames(memory_results) <- x
+  
+  #size of matrix
+  objects_size_results=matrix(0,length(x),1)
+  colnames(objects_size_results) <- c("Matrix size (MB)") 
+  rownames(objects_size_results) <- x
+  
+  #start memory
+  start_mem = mem_used() 
+  
+  for (val in x) {
+    i = i+1
+    matrix_set =  matrix(rnorm(10),val,val)
+    
+    #sapply
+    ptm <- proc.time()
+    temp_matrix = sapply(matrix_set,function(y) 10 * y)
+    endtime = proc.time() - ptm
+    runtime_results[i,1] <- endtime[3]
+    memory_results[i,1] <- mem_used()  
+    
+    #parallel 2 cores
+    ptm <- proc.time()
+    cl = makeCluster(2) 
+    temp_matrix = parSapply(cl,matrix_set,function(y) 10 * y)
+    stopCluster(cl) 
+    endtime = proc.time() - ptm
+    runtime_results[i,2] <- endtime[3]
+    memory_results[i,2] <- mem_used()
+    
+    #parallel 4 cores
+    ptm <- proc.time()
+    cl = makeCluster(4)
+    temp_matrix = parSapply(cl,matrix_set,function(y) 10 * y)
+    stopCluster(cl) 
+    endtime = proc.time() - ptm
+    runtime_results[i,3] <- endtime[3]
+    memory_results[i,3] <- mem_used()
+    
+    
+    #parallel 6 cores
+    ptm <- proc.time()
+    cl = makeCluster(6)
+    temp_matrix = parSapply(cl,matrix_set,function(y) 10 * y)
+    stopCluster(cl) 
+    endtime = proc.time() - ptm
+    runtime_results[i,4] <- endtime[3]
+    memory_results[i,4] <- mem_used()
+    
+    objects_size_results[i,1] = object_size(temp_matrix) #all matrix sizes in loop are the same
+  }
+  
+  
+  #runtime_results
+  #memory_results <- round((memory_results- start_mem) * 0.000001, 2) # bytes to megabytes and remove start overhead
+  memory_results <- round(memory_results * 0.000001, 2) # bytes to megabyte
+  objects_size_results <- round(objects_size_results * 0.000001, 2) 
+  #memory_results
+  #objects_size_results
+  
+
+  if(print_out == TRUE){
+
+    #plots runtime
+    runtime.df<- as.data.frame(runtime_results)
+    plot(x,runtime.df$`Sapply (secs)`,type = "o",pch="+",xlab ="matrix size (n cols,rows)",ylab ="runtime (secs)", main = "matrix computation - sapply vs parrellel " ,ylim=c(0,max(runtime_results)+(max(runtime_results)/2)))
+    points(x,runtime.df$`parrellel2`, col="dark red",pch="+")
+    lines(x,runtime.df$`parrellel2`, col="dark red",lty=2)
+    points(x,runtime.df$`parrellel4`, col="red",pch="+")
+    lines(x,runtime.df$`parrellel4`, col="red",lty=2)
+    points(x,runtime.df$`parrellel6`, col="orange",pch="+")
+    lines(x,runtime.df$`parrellel6`, col="orange",lty=2)
+    legend("topleft",legend=c("sapply","2 cores","4 cores","6 cores"), col=c("black","red","dark red", "orange"),
+           pch=c("+","+","+","+"),lty=c(1,2,3), ncol=1)
+    
+   
+    #plots memory
+    memory.df<- as.data.frame(memory_results)
+    plot(x,memory.df$`Sapply (MB)`,type = "o",pch="+",xlab ="matrix size (n cols,rows)",ylab ="memory (MB)", main = "matrix memory - sapply vs parrellel",ylim=c(min(memory_results),max(memory_results)+5)) 
+    points(x,memory.df$`parrellel2 (MB)`, col="dark red",pch="+")
+    lines(x,memory.df$`parrellel2 (MB)`, col="dark red",lty=2)
+    points(x,memory.df$`parrellel4 (MB)`, col="red",pch="+")
+    lines(x,memory.df$`parrellel4 (MB)`, col="red",lty=2)
+    points(x,memory.df$`parrellel6 (MB)`, col="orange",pch="+")
+    lines(x,memory.df$`parrellel6 (MB)`, col="orange",lty=2)
+    legend("topleft",legend=c("sapply","2 cores","4 cores","6 cores"), col=c("black","red","dark red", "orange"),
+           pch=c("+","+","+","+"),lty=c(1,2,3), ncol=1)
+    
+  }
+  
+  return(memory.df)
+  }
+
+x <- c(1,10,100,200,500,1000,2000,3000,5000,7000,10000)
+memory = rmatrix_tests(x,TRUE)
+```
+
+
+
+## Possible Improvements to R code 
+If R code isn't fast enough due to bottle necks the following mabye possible.
+
+1. Rewrite functions in C/C++, the bottlenecks that can be address are:
+
+* Loops that cant be easily vectorised because subsequent iterations depend on previous ones.
+* Recursive functions
+* Problems that require advanced data structures
+
+2. Frameworks 
+
+* tensorflow (utilisig monder architecturd -GPU)
+* mapreduce, Hadoop (clusters for big data)
+
+3. Other improved library languagues
+
+* GNU GSL
+* Stan
