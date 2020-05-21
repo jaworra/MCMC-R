@@ -9,7 +9,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 ## Introduction
-Indicative report comparing R matrix efficiencies efficiencies. The initial investigation is on R native solutions including techniques and support libraries for efficiencies. Elementwise function change to 2 dimiensional matrix of 1000 x 1000 matrix with:
+Indicative report comparing R matrix efficiencies. The initial investigation is on R native solutions including techniques and support libraries for matrix operations. A test on elementwise function change to 2 dimiensional matrix of 1000 x 1000 matrix with:
 
 
 * stardard looping through matrix
@@ -86,7 +86,7 @@ grid.draw(g)
 
 ## Results
 sapply performce show the lowest elapse time on a 1000 x 1000  matrix, this is likely due to the overhead of running jobs in parallel.
-If the jobs you fire at the worker nodes take a significant amount of time then it is likely parallelization will improve overall performance. If individual jobs take only milliseconds, the overhead of constantly firing off jobs will deteriorate overall performance. Further optimising is possible by dividing the work over the nodes in such a way that the jobs are sufficiently long, say at least a few second. Parrallelisation advantages are shown when runing models simultaneously that individual will run for hours.
+If the jobs you fire at the worker nodes take a significant amount of time then it is likely parallelization will improve overall performance. If individual jobs take only milliseconds, the overhead of constantly firing off jobs will deteriorate overall performance. Further optimising is possible by dividing the work over the nodes in such a way that the jobs are sufficiently long, say at least a few second. Parrallelisation advantages will likely be shown when runing models simultaneously that individual will run for hours.
 
 
 Computational and memory plots of 2d matrix with varying size:
@@ -206,14 +206,26 @@ rmatrix_tests <- function(n_matrix = c(1,10,100) ,print_out=TRUE) {
   return(memory.df)
   }
 
-x <- c(1,10,100,200,500,1000,2000,3000,5000,7000,10000)
+x <- c(1,10,100,200,500,1000,2000,3000,4000,5000)
 memory = rmatrix_tests(x,TRUE)
 ```
 
+## Memory Limitation for larger Matrixs
+Any matrix over 7000 rows/columns in R code failed to compute on personal compute, due to massive memory requrements on the RAM. To address limitation, some possiblie solutions are:
+
+1. Rewrite R algorithm to work on submatrix, saving to disk unused data. i.e Fox algorithm.
+
+2. Pythons PyTables and NumPy.PyTables store data on disk in HDF compression with possiblity of 
+tens of millions of rows.
+
+3. Vertical scaling. Larger Compute instances, such as cloud computing to access very large RAM capacity (244GB).
+
+4. Horizontal scaling with distributed computing. This includes systems such as Apache Spark and Hadoop etc.
 
 
-## Possible Improvements to R code 
-If R code isn't fast enough due to bottle necks the following mabye possible.
+## Computational Improvements to R code 
+As shown R code native sapply for matrix operations outperforms parrrllel processing and delievers quick results for large matrix. This may not be the case for other operations, if faster operations are required due to bottle necks the following mabye possible.
+
 
 1. Rewrite functions in C/C++, the bottlenecks that can be address are:
 
